@@ -37,7 +37,7 @@ namespace RecSys
             recSys.AddPredictionsToTestingSet();
             sw.Stop();
 
-            Console.WriteLine("Pregictions: {0}", sw.Elapsed);
+            Console.WriteLine("Predictions: {0}", sw.Elapsed);
 
             sw.Restart();
             var mae = recSys.MeanAverageError();
