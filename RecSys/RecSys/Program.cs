@@ -8,7 +8,7 @@ namespace RecSys
 {
     class Program
     {
-        static void Main(string[] args)
+        static void Main3(string[] args)
         {
             var sw = new System.Diagnostics.Stopwatch();
             var recSys = new RecommenderSystem();
@@ -37,7 +37,7 @@ namespace RecSys
             recSys.AddPredictionsToTestingSet();
             sw.Stop();
 
-            Console.WriteLine("Pregictions: {0}", sw.Elapsed);
+            Console.WriteLine("Predictions: {0}", sw.Elapsed);
 
             sw.Restart();
             var mae = recSys.MeanAverageError();
@@ -49,7 +49,7 @@ namespace RecSys
             Console.Read();
         }
 
-        static void Main2(string[] args)
+        static void Main(string[] args)
         {
             var sw = new System.Diagnostics.Stopwatch();
             
@@ -72,7 +72,7 @@ namespace RecSys
             Console.WriteLine("Calculate norms have ended");
 
             sw.Restart();
-            recSys.CalculateSimilarities(recSys.CosSimilarity);
+            recSys.CalculateSimilarities(recSys.PCSimilarity);
             sw.Stop();
 
             Console.WriteLine("Similarity: {0}", sw.Elapsed);

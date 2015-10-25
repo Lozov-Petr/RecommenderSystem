@@ -357,6 +357,56 @@ namespace RecSys
             return Convert.ToByte(scalar * 100);
         }
 
+        public byte PCSimilarity(int user1, int user2)
+        {
+            float scalar = 0;
+            float normUser1 = 0;
+            float normUser2 = 0;
+
+            int index1 = 0;
+            int index2 = 0;
+
+            var songsOfUser1 = _songsOfUsers[user1];
+            var songsOfUser2 = _songsOfUsers[user2];
+
+            float user1AvgRate = 0;
+            float user2AvgRate = 0;
+
+            // Calculates average song counts
+            foreach (var song in songsOfUser1)
+            {
+                user1AvgRate += _countsTable[user1][song];
+            }
+            user1AvgRate /= (float)songsOfUser1.Length;
+
+            foreach (var song in songsOfUser2)
+            {
+                user2AvgRate += _countsTable[user2][song];
+            }
+            user2AvgRate /= (float)songsOfUser2.Length;
+
+            // Calculates Pearson similarity 
+            while (index1 < songsOfUser1.Length && index2 < songsOfUser2.Length)
+            {
+                if (songsOfUser1[index1] > songsOfUser2[index2]) ++index2;
+                else if (songsOfUser1[index1] < songsOfUser2[index2]) ++index1;
+                else
+                {
+                    scalar += (_countsTable[user1][songsOfUser1[index1]] - user1AvgRate) * (_countsTable[user2][songsOfUser2[index2]] - user2AvgRate);
+                    normUser1 += (_countsTable[user1][songsOfUser1[index1]] - user1AvgRate) * (_countsTable[user1][songsOfUser1[index1]] - user1AvgRate);
+                    normUser2 += (_countsTable[user2][songsOfUser2[index2]] - user2AvgRate) * (_countsTable[user2][songsOfUser2[index2]] - user2AvgRate);
+                    index1++;
+                    index2++;
+                }
+            }
+
+            if (normUser1 == 0 || normUser2 == 0)
+                return 0;
+
+            scalar /= (float)Math.Sqrt(normUser1 * normUser2);
+            return Convert.ToByte((scalar + 1) * 50);
+        }
+
         public float MeanAverageError()
         {
             long errorSum = 0;
