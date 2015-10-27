@@ -10,8 +10,9 @@ namespace RecSys
 {
     class RecommenderSystem
     {
-        private const int NeighboursCount = 20;
-        private const float PenaltyParamenter = 5;
+        private const int NeighboursCount = 14;
+        private const float PenaltyParamenter = 0;
+        private const int NumberOfBestPrediction = 10;
 
         private Dictionary<string, int> _usersToNumbers;
         private Dictionary<string, int> _songsToNumbers;
@@ -26,18 +27,89 @@ namespace RecSys
         private float[] _norms;
 
         private byte[][] _similaritiesTable;
-        private byte[][] _predictionsTable;
 
         private int _userCount;
         private int _songCount;
 
-        public List<Info> _testingSet;
+        private List<Info> _testingSet;
 
         public RecommenderSystem()
         {
         }
 
-        public void SeparateBySongs(string path, double probability, int randomParam = 0)
+        public void CheckRecSystemForErrors()
+        {
+            var sw = new System.Diagnostics.Stopwatch();
+
+            sw.Start();
+            SeparateBySongs("subset.set", 0.8);
+            sw.Stop();
+            Console.WriteLine("Separated: {0}", sw.Elapsed);
+
+            sw.Start();
+            ReadCounts("training.set");
+            sw.Stop();
+            Console.WriteLine("Read: {0}", sw.Elapsed);
+
+            sw.Restart();
+            CalculateNorms();
+            sw.Stop();
+            Console.WriteLine("Norms calculated: {0}", sw.Elapsed);
+
+            sw.Restart();
+            CalculateSimilarities(CosSimilarity);
+            sw.Stop();
+            Console.WriteLine("Similarities calculated: {0}", sw.Elapsed);
+
+            sw.Restart();
+            ReadTestingSet("testing.set");
+            sw.Stop();
+            Console.WriteLine("Read testing set: {0}", sw.Elapsed);
+
+            sw.Restart();
+            AddPredictionsToTestingSet();
+            sw.Stop();
+            Console.WriteLine("Predictions calculated: {0}", sw.Elapsed);
+
+            sw.Restart();
+            var mae = MeanAverageError();
+            var rmse = RootMeanAverageError();
+            sw.Stop();
+            Console.WriteLine("MAE: {0}, RMSE: {1}, counted in {2}", mae, rmse, sw.Elapsed);
+
+            Console.Read();
+        }
+
+        public void PrintRecommendationsFor(string user)
+        {
+            var sw = new System.Diagnostics.Stopwatch();
+
+            sw.Start();
+            ReadCounts("training.set");
+            sw.Stop();
+            Console.WriteLine("Read subset: {0}", sw.Elapsed);
+
+            sw.Restart();
+            CalculateNorms();
+            sw.Stop();
+            Console.WriteLine("Norms calculated: {0}", sw.Elapsed);
+
+            sw.Restart();
+            CalculateSimilarities(PCSimilarity);
+            sw.Stop();
+            Console.WriteLine("Similarities calculated: {0}", sw.Elapsed);
+
+
+            var rating = Rating(user);
+            foreach (var rate in rating)
+            {
+                Console.WriteLine("{0}", rate);
+            }
+
+            Console.Read();
+        }
+
+        private void SeparateBySongs(string path, double probability, int randomParam = 0)
         {
             if (!File.Exists(path))
             {
@@ -104,7 +176,7 @@ namespace RecSys
             trainingWriter.Close();
         }
 
-        public void ReadCounts(string path)
+        private void ReadCounts(string path)
         {
             if (!File.Exists(path))
             {
@@ -180,7 +252,7 @@ namespace RecSys
                 _songsOfUsers[i] = songsOfUsers[i].ToArray();
         }
 
-        public void ReadTestingSet(string path)
+        private void ReadTestingSet(string path)
         {
             if (!File.Exists(path))
             {
@@ -205,7 +277,7 @@ namespace RecSys
             reader.Close();
         }
 
-        public void CalculateNorms()
+        private void CalculateNorms()
         {
             _norms = new float[_userCount];
             for (int i = 0; i < _userCount; ++i)
@@ -219,7 +291,7 @@ namespace RecSys
             }
         }
 
-        public void CalculateSimilarities(Func<int, int, byte> calculateSimilarity)
+        private void CalculateSimilarities(Func<int, int, byte> calculateSimilarity)
         {
             _similaritiesTable = new byte[_userCount][];
 
@@ -232,11 +304,11 @@ namespace RecSys
                     _similaritiesTable[i][j] = calculateSimilarity(i, j);
                 }
 
-                if (i % 250 == 0)  Console.WriteLine("Count: {0}", i);
+                if (i % 500 == 0)  Console.WriteLine("{0, 5} out of {1}", i, _userCount);
             }
         }
 
-        public void AddPredictionsToTestingSet()
+        private void AddPredictionsToTestingSet()
         {
             int count = 0;
 
@@ -248,11 +320,11 @@ namespace RecSys
                 entry.LogPrediction = CalculateLogPrediction(user, song);
                 count++;
 
-                if (count % 1000 == 0) Console.WriteLine("Count: {0}", count);
+                if (count % 1000 == 0) Console.WriteLine("{0, 5} out of {1}", count, _testingSet.Count);
             }
         }
 
-        public float CalculateLogPrediction(int user, int song)
+        private float CalculateLogPrediction(int user, int song)
         {
             var users = new List<int>();
 
@@ -282,7 +354,7 @@ namespace RecSys
             return prediction / similaritySum;
         }
 
-        public void WriteSimilarities(string path)
+        private void WriteSimilarities(string path)
         {
             var stream = new FileStream(path, FileMode.Create);
             var writer = new BinaryWriter(stream);
@@ -295,7 +367,7 @@ namespace RecSys
             stream.Close();
         }
 
-        public void ReadSimilarities(string path)
+        private void ReadSimilarities(string path)
         {
             if (!File.Exists(path))
             {
@@ -322,12 +394,12 @@ namespace RecSys
              stream.Close();
         }
 
-        public byte GetSimilarity(int user1, int user2)
+        private byte GetSimilarity(int user1, int user2)
         {
             return user1 < user2 ? _similaritiesTable[user2][user1] : _similaritiesTable[user1][user2];
         }
 
-        public byte CosSimilarity(int user1, int user2)
+        private byte CosSimilarity(int user1, int user2)
         {
             float scalar = 0;
 
@@ -350,6 +422,8 @@ namespace RecSys
                 }
             }
 
+            if (commonSongsCount == 0) return 0;
+
             scalar /= _norms[user1] * _norms[user2];
 
             scalar *= (float)commonSongsCount / (float)(commonSongsCount + PenaltyParamenter);
@@ -357,7 +431,7 @@ namespace RecSys
             return Convert.ToByte(scalar * 100);
         }
 
-        public byte PCSimilarity(int user1, int user2)
+        private byte PCSimilarity(int user1, int user2)
         {
             float scalar = 0;
             float normUser1 = 0;
@@ -407,7 +481,45 @@ namespace RecSys
             return Convert.ToByte((scalar + 1) * 50);
         }
 
-        public float MeanAverageError()
+        private List<string> Rating(string user)
+        {
+            return InternalRating(_usersToNumbers[user]).ConvertAll(tuple => tuple.Item1);
+        }
+
+        private List<Tuple<string, float>> InternalRating(int userNumber)
+        {
+            var unheard = new List<Tuple<int, float>>();
+            var songs = _countsTable[userNumber];
+
+            for (int song = 0; song < songs.Length; ++song)
+            {
+                if (songs[song] > 0) continue;
+
+                var prediction = CalculateLogPrediction(userNumber, song);
+                unheard.Add(new Tuple<int, float>(song, prediction));
+            }
+            return 
+                unheard
+                .OrderByDescending(tuple => tuple.Item2)
+                .ToList()
+                .GetRange(0, Math.Min(unheard.Count, NumberOfBestPrediction))
+                .ConvertAll(tuple => new Tuple<string, float>(_numbersToSongs[tuple.Item1], tuple.Item2));
+        }
+
+        private void printSongCounts(string song) {
+            var songNumber = _songsToNumbers[song];
+
+            for (int user = 0; user < _countsTable.Length; ++user)
+            {
+                var count = _countsTable[user][songNumber];
+
+                if (count == 0) continue;
+
+                Console.WriteLine("{0}", count);
+            }
+        }
+
+        private float MeanAverageError()
         {
             long errorSum = 0;
 
@@ -421,7 +533,7 @@ namespace RecSys
             return (float)Math.Sqrt(error);
         }
 
-        public float RootMeanAverageError()
+        private float RootMeanAverageError()
         {
             long errorSum = 0;
 
