@@ -12,6 +12,7 @@ namespace RecSys
     {
         private const int NeighboursCount = 20;
         private const float PenaltyParamenter = 5;
+        private const int NumberOfBestPrediction = 10;
 
         private Dictionary<string, int> _usersToNumbers;
         private Dictionary<string, int> _songsToNumbers;
@@ -405,6 +406,44 @@ namespace RecSys
 
             scalar /= (float)Math.Sqrt(normUser1 * normUser2);
             return Convert.ToByte((scalar + 1) * 50);
+        }
+
+        public List<string> Rating(string user)
+        {
+            return InternalRating(_usersToNumbers[user]).ConvertAll(tuple => tuple.Item1);
+        }
+
+        public List<Tuple<string, float>> InternalRating(int userNumber)
+        {
+            var unheard = new List<Tuple<int, float>>();
+            var songs = _countsTable[userNumber];
+
+            for (int song = 0; song < songs.Length; ++song)
+            {
+                if (songs[song] > 0) continue;
+
+                var prediction = CalculateLogPrediction(userNumber, song);
+                unheard.Add(new Tuple<int, float>(song, prediction));
+            }
+            return 
+                unheard
+                .OrderByDescending(tuple => tuple.Item2)
+                .ToList()
+                .GetRange(0, Math.Min(unheard.Count, NumberOfBestPrediction))
+                .ConvertAll(tuple => new Tuple<string, float>(_numbersToSongs[tuple.Item1], tuple.Item2));
+        }
+
+        public void printSongCounts(string song) {
+            var songNumber = _songsToNumbers[song];
+
+            for (int user = 0; user < _countsTable.Length; ++user)
+            {
+                var count = _countsTable[user][songNumber];
+
+                if (count == 0) continue;
+
+                Console.WriteLine("{0}", count);
+            }
         }
 
         public float MeanAverageError()
